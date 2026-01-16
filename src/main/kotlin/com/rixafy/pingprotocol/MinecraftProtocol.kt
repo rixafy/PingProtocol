@@ -15,7 +15,7 @@ object MinecraftProtocol {
 
         while (true) {
             if (!buf.isReadable) {
-                throw RuntimeException("VarInt is too big")
+                throw RuntimeException("Unexpected end of stream while reading VarInt")
             }
 
             currentByte = buf.readByte()

@@ -29,6 +29,7 @@ class PingServer(
                 .channel(NioServerSocketChannel::class.java)
                 .childHandler(object : ChannelInitializer<SocketChannel>() {
                     override fun initChannel(ch: SocketChannel) {
+                        ch.pipeline().addLast("frame-decoder", VarIntFrameDecoder())
                         ch.pipeline().addLast("ping-handler", MinecraftPingHandler(plugin, logger))
                     }
                 })
