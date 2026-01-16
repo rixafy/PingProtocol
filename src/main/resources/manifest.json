@@ -1,0 +1,14 @@
+{
+  "Group": "Hytalist",
+  "Name": "PingProtocol",
+  "Version": "1.0.0",
+  "Description": "Minecraft Server List Ping protocol implementation for Hytale servers",
+  "Main": "com.rixafy.pingprotocol.PingProtocolPlugin",
+  "Authors": [
+    {
+      "Name": "rixafy"
+    }
+  ],
+  "ServerVersion": ">=0.0.1",
+  "DisabledByDefault": false
+}
