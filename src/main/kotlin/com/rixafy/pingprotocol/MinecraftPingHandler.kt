@@ -8,6 +8,7 @@ import io.netty.buffer.Unpooled
 import io.netty.channel.ChannelFutureListener
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
+import java.net.InetSocketAddress
 import java.util.logging.Level
 import java.util.logging.Logger
 
@@ -87,35 +88,51 @@ class MinecraftPingHandler(
     private fun handleStatusRequest(ctx: ChannelHandlerContext) {
         val config = plugin.config
         val universe = Universe.get()
-        val currentPlayerCount = universe.playerCount
+        val clientAddress = ctx.channel().remoteAddress() as? InetSocketAddress
 
-        val json = StatusCache.getCachedOrBuild(currentPlayerCount) {
-            val playerSample = if (config.showPlayerList && currentPlayerCount > 0) {
-                universe.players.map { player ->
-                    StatusResponse.PlayerSample(
+        // Create and populate the event with default values
+        val event = PingEvent(
+            clientAddress = clientAddress,
+            protocolVersion = protocolVersion,
+            isLegacy = false
+        ).apply {
+            motd = config.motd
+            onlinePlayers = universe.playerCount
+            maxPlayers = getMaxPlayers()
+            versionName = getServerVersion()
+            versionProtocol = 0
+
+            if (config.showPlayerList && universe.playerCount > 0) {
+                playerSample = universe.players.map { player ->
+                    PingEvent.PlayerInfo(
                         name = player.username,
-                        id = player.uuid.toString()
+                        uuid = player.uuid.toString()
                     )
-                }
-            } else {
-                emptyList()
+                }.toMutableList()
             }
-
-            val response = StatusResponse(
-                version = StatusResponse.Version(
-                    name = getServerVersion(),
-                    protocol = 0
-                ),
-                players = StatusResponse.Players(
-                    max = getMaxPlayers(),
-                    online = currentPlayerCount,
-                    sample = if (playerSample.isEmpty()) null else playerSample
-                ),
-                description = StatusResponse.Description(text = config.motd)
-            )
-
-            gson.toJson(response)
         }
+
+        // Fire event to allow listeners to modify the response
+        PingEvent.fire(event)
+
+        // Build response from event data
+        val response = StatusResponse(
+            version = StatusResponse.Version(
+                name = event.versionName,
+                protocol = event.versionProtocol
+            ),
+            players = StatusResponse.Players(
+                max = event.maxPlayers,
+                online = event.onlinePlayers,
+                sample = if (event.playerSample.isEmpty()) null else event.playerSample.map {
+                    StatusResponse.PlayerSample(name = it.name, id = it.uuid)
+                }
+            ),
+            description = StatusResponse.Description(text = event.motd),
+            favicon = event.favicon
+        )
+
+        val json = gson.toJson(response)
 
         val responseBuf = Unpooled.buffer()
 
@@ -177,13 +194,30 @@ class MinecraftPingHandler(
     private fun handleLegacyExtendedPing(ctx: ChannelHandlerContext) {
         val config = plugin.config
         val universe = Universe.get()
+        val clientAddress = ctx.channel().remoteAddress() as? InetSocketAddress
+
+        // Create and populate the event with default values
+        val event = PingEvent(
+            clientAddress = clientAddress,
+            protocolVersion = 0,
+            isLegacy = true
+        ).apply {
+            motd = config.motd
+            onlinePlayers = universe.playerCount
+            maxPlayers = getMaxPlayers()
+            versionName = getServerVersion()
+            versionProtocol = 0
+        }
+
+        // Fire event to allow listeners to modify the response
+        PingEvent.fire(event)
 
         val response = "\u00A7\u0031\u0000" +
-                "0\u0000" +
-                "${getServerVersion()}\u0000" +
-                "${config.motd}\u0000" +
-                "${universe.playerCount}\u0000" +
-                "${getMaxPlayers()}"
+                "${event.versionProtocol}\u0000" +
+                "${event.versionName}\u0000" +
+                "${event.motd}\u0000" +
+                "${event.onlinePlayers}\u0000" +
+                "${event.maxPlayers}"
 
         val responseBuf = Unpooled.buffer()
         responseBuf.writeByte(0xFF)
@@ -196,8 +230,23 @@ class MinecraftPingHandler(
     private fun handleLegacyBasicPing(ctx: ChannelHandlerContext) {
         val config = plugin.config
         val universe = Universe.get()
+        val clientAddress = ctx.channel().remoteAddress() as? InetSocketAddress
 
-        val response = "${config.motd}\u00A7${universe.playerCount}\u00A7${getMaxPlayers()}"
+        // Create and populate the event with default values
+        val event = PingEvent(
+            clientAddress = clientAddress,
+            protocolVersion = 0,
+            isLegacy = true
+        ).apply {
+            motd = config.motd
+            onlinePlayers = universe.playerCount
+            maxPlayers = getMaxPlayers()
+        }
+
+        // Fire event to allow listeners to modify the response
+        PingEvent.fire(event)
+
+        val response = "${event.motd}\u00A7${event.onlinePlayers}\u00A7${event.maxPlayers}"
 
         val responseBuf = Unpooled.buffer()
         responseBuf.writeByte(0xFF)
