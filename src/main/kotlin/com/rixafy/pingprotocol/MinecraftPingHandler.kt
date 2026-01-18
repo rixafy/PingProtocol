@@ -113,7 +113,16 @@ class MinecraftPingHandler(
         }
 
         // Fire event to allow listeners to modify the response
-        PingEvent.fire(event)
+        val dispatcher = HytaleServer.get().eventBus.dispatchFor(PingEvent::class.java, null as Void?)
+        if (dispatcher.hasListener()) {
+            dispatcher.dispatch(event)
+        }
+
+        // If cancelled, close connection without response
+        if (event.isCancelled) {
+            ctx.close()
+            return
+        }
 
         // Build response from event data
         val response = StatusResponse(
@@ -210,7 +219,16 @@ class MinecraftPingHandler(
         }
 
         // Fire event to allow listeners to modify the response
-        PingEvent.fire(event)
+        val dispatcher = HytaleServer.get().eventBus.dispatchFor(PingEvent::class.java, null as Void?)
+        if (dispatcher.hasListener()) {
+            dispatcher.dispatch(event)
+        }
+
+        // If cancelled, close connection without response
+        if (event.isCancelled) {
+            ctx.close()
+            return
+        }
 
         val response = "\u00A7\u0031\u0000" +
                 "${event.versionProtocol}\u0000" +
@@ -244,7 +262,16 @@ class MinecraftPingHandler(
         }
 
         // Fire event to allow listeners to modify the response
-        PingEvent.fire(event)
+        val dispatcher = HytaleServer.get().eventBus.dispatchFor(PingEvent::class.java, null as Void?)
+        if (dispatcher.hasListener()) {
+            dispatcher.dispatch(event)
+        }
+
+        // If cancelled, close connection without response
+        if (event.isCancelled) {
+            ctx.close()
+            return
+        }
 
         val response = "${event.motd}\u00A7${event.onlinePlayers}\u00A7${event.maxPlayers}"
 

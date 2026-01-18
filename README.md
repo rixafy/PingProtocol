@@ -78,13 +78,15 @@ The `PingEvent` allows you to intercept ping requests and customize the response
 ### Kotlin Example
 
 ```kotlin
+import com.hypixel.hytale.server.core.plugin.JavaPlugin
+import com.hypixel.hytale.server.core.plugin.JavaPluginInit
 import com.rixafy.pingprotocol.PingEvent
 
-class MyPlugin : JavaPlugin(init) {
+class MyPlugin(init: JavaPluginInit) : JavaPlugin(init) {
 
     override fun start() {
         // Register a ping event listener
-        PingEvent.addListener { event ->
+        eventRegistry.registerGlobal(PingEvent::class.java) { event ->
             // Customize the MOTD
             event.motd = "§aWelcome to My Server!\n§7Currently ${event.onlinePlayers} players online"
 
@@ -104,13 +106,11 @@ class MyPlugin : JavaPlugin(init) {
 
             // Access client info
             val clientIp = event.clientAddress?.address?.hostAddress
-            println("Ping from: $clientIp (protocol: ${event.protocolVersion})")
-        }
-    }
+            logger.info("Ping from: $clientIp (protocol: ${event.protocolVersion})")
 
-    override fun shutdown() {
-        // Clean up listeners
-        PingEvent.clearListeners()
+            // Cancel to prevent response (optional)
+            // event.isCancelled = true
+        }
     }
 }
 ```
@@ -118,16 +118,20 @@ class MyPlugin : JavaPlugin(init) {
 ### Java Example
 
 ```java
+import com.hypixel.hytale.server.core.plugin.JavaPlugin;
+import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.rixafy.pingprotocol.PingEvent;
 
 public class MyPlugin extends JavaPlugin {
 
-    private PingEvent.Listener pingListener;
+    public MyPlugin(JavaPluginInit init) {
+        super(init);
+    }
 
     @Override
     public void start() {
-        // Create and register a ping event listener
-        pingListener = event -> {
+        // Register a ping event listener
+        getEventRegistry().registerGlobal(PingEvent.class, event -> {
             // Customize the MOTD
             event.setMotd("§aWelcome to My Server!\n§7Currently " + event.getOnlinePlayers() + " players online");
 
@@ -148,27 +152,24 @@ public class MyPlugin extends JavaPlugin {
             // Access client info
             if (event.getClientAddress() != null) {
                 String clientIp = event.getClientAddress().getAddress().getHostAddress();
-                System.out.println("Ping from: " + clientIp + " (protocol: " + event.getProtocolVersion() + ")");
+                getLogger().info("Ping from: " + clientIp + " (protocol: " + event.getProtocolVersion() + ")");
             }
-        };
 
-        PingEvent.Companion.addListener(pingListener);
-    }
-
-    @Override
-    public void shutdown() {
-        // Remove the listener
-        PingEvent.Companion.removeListener(pingListener);
+            // Cancel to prevent response (optional)
+            // event.setCancelled(true);
+        });
     }
 }
 ```
 
 ### 💡 Tips
 
+- **Cancelling** the event (`event.setCancelled(true)`) will close the connection without sending a response.
 - **Legacy pings** (`event.isLegacy == true`) only support `motd`, `onlinePlayers`, `maxPlayers`, and `versionName`. Player sample and favicon are ignored.
 - **Player sample** entries can use Minecraft color codes (§) for colored text in the hover tooltip.
 - **Favicon** must be a base64-encoded PNG image exactly 64x64 pixels.
 - **Multiple listeners** are supported — all listeners are called in registration order.
+- **Event registration** is automatically cleaned up when your plugin is unloaded.
 
 ## Protocol Support
 

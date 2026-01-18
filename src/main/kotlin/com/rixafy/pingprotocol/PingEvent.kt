@@ -1,10 +1,28 @@
 package com.rixafy.pingprotocol
 
+import com.hypixel.hytale.event.ICancellable
+import com.hypixel.hytale.event.IEvent
 import java.net.InetSocketAddress
 
 /**
  * Event fired when a client pings the server.
  * Server owners can modify the response properties before it's sent.
+ *
+ * Kotlin:
+ * ```kotlin
+ * eventRegistry.registerGlobal(PingEvent::class.java) { event ->
+ *     event.motd = "Welcome to my server!"
+ *     event.maxPlayers = 500
+ * }
+ * ```
+ *
+ * Java:
+ * ```java
+ * eventRegistry.registerGlobal(PingEvent.class, event -> {
+ *     event.setMotd("Welcome to my server!");
+ *     event.setMaxPlayers(500);
+ * });
+ * ```
  */
 class PingEvent(
     /** The client's remote address */
@@ -15,7 +33,8 @@ class PingEvent(
 
     /** Whether this is a legacy ping (Minecraft 1.6 or older) */
     val isLegacy: Boolean
-) {
+) : IEvent<Void>, ICancellable {
+
     /** Message of the day displayed in server list */
     var motd: String = ""
 
@@ -37,6 +56,14 @@ class PingEvent(
     /** Base64-encoded PNG favicon (64x64), null to not send */
     var favicon: String? = null
 
+    private var cancelled: Boolean = false
+
+    override fun isCancelled(): Boolean = cancelled
+
+    override fun setCancelled(cancelled: Boolean) {
+        this.cancelled = cancelled
+    }
+
     /**
      * Represents a player in the sample list
      */
@@ -44,50 +71,4 @@ class PingEvent(
         val name: String,
         val uuid: String
     )
-
-    /**
-     * Functional interface for PingEvent listeners
-     */
-    fun interface Listener {
-        fun onPing(event: PingEvent)
-    }
-
-    companion object {
-        private val listeners = mutableListOf<Listener>()
-
-        /**
-         * Register a listener to be called when ping events occur
-         */
-        fun addListener(listener: Listener) {
-            listeners.add(listener)
-        }
-
-        /**
-         * Remove a previously registered listener
-         */
-        fun removeListener(listener: Listener) {
-            listeners.remove(listener)
-        }
-
-        /**
-         * Clear all registered listeners
-         */
-        fun clearListeners() {
-            listeners.clear()
-        }
-
-        /**
-         * Fire the event to all registered listeners
-         */
-        internal fun fire(event: PingEvent) {
-            for (listener in listeners) {
-                try {
-                    listener.onPing(event)
-                } catch (e: Exception) {
-                    // Log but don't break the ping response
-                    e.printStackTrace()
-                }
-            }
-        }
-    }
 }
