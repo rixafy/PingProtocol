@@ -2,6 +2,15 @@
 
 A Hytale plugin that implements the Minecraft Server List Ping protocol, allowing Minecraft clients to query your Hytale server information and display it in their server list.
 
+## ✨ Features
+
+- 🔌 **Full Protocol Support** — Modern (1.7+), Legacy (1.6), and Beta (1.8-1.3) protocols
+- 👥 **Live Player Info** — Real-time player count, max slots, and player list with UUIDs
+- 🎨 **Customizable Responses** — MOTD, version name, player sample, and favicon
+- 🎯 **Event API** — Intercept and modify ping responses dynamically via `PingEvent`
+- ⚡ **High Performance** — Smart caching with sub-10ms response times
+- 🔧 **Zero Port Config** — Runs on same port as game server (TCP alongside UDP)
+
 ## How It Works
 
 This plugin creates a TCP server that runs alongside Hytale's QUIC (UDP) game server. The key insight is that **TCP and UDP are separate protocols**, so they can both listen on the same port number without conflicts:
@@ -10,28 +19,6 @@ This plugin creates a TCP server that runs alongside Hytale's QUIC (UDP) game se
 - **PingProtocol Plugin**: Uses TCP on the same port number for Minecraft ping requests
 
 This allows Minecraft clients to ping your Hytale server without any port forwarding or additional network configuration.
-
-## Features
-
-- **Full Minecraft Protocol Support**:
-  - Modern protocol (1.7+) with JSON status responses
-  - Legacy protocol (1.6) with §1 formatted responses
-  - Very old protocol (Beta 1.8 - 1.3) support
-
-- **Automatic Server Information**:
-  - Current player count and max players
-  - Player list with names and UUIDs
-  - Server version from Hytale manifest (e.g., "2026.01.13")
-
-- **Performance Optimized**:
-  - Smart response caching (1-second cache duration)
-  - Cache invalidates when player count changes
-  - Sub-10ms response time for cached requests
-
-- **Simple Configuration**:
-  - Custom MOTD text
-  - Show/hide player list
-  - Always uses game server port (no extra configuration needed)
 
 ## Installation
 
@@ -62,6 +49,126 @@ The plugin automatically:
 - Uses the same port as your Hytale server (TCP/UDP can share the same port)
 - Reports protocol version 0 to indicate a non-Minecraft server
 - Reads the server version from Hytale's manifest and strips build hash (e.g., "2026.01.13-dcad8778f" becomes "2026.01.13")
+
+## 🎯 PingEvent API
+
+The `PingEvent` allows you to intercept ping requests and customize the response dynamically. This is useful for:
+
+- 🎭 Showing different MOTDs based on time of day or server state
+- 📊 Displaying custom player counts or fake slots
+- 👤 Adding custom entries to the player sample list
+- 🖼️ Setting a dynamic favicon
+- 🚫 Hiding certain players from the list
+
+### Event Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `clientAddress` | `InetSocketAddress?` | Client's IP address and port (read-only) |
+| `protocolVersion` | `Int` | Protocol version from client (read-only) |
+| `isLegacy` | `Boolean` | Whether this is a legacy ping (read-only) |
+| `motd` | `String` | Message of the Day |
+| `onlinePlayers` | `Int` | Number of online players |
+| `maxPlayers` | `Int` | Maximum player slots |
+| `versionName` | `String` | Server version displayed to clients |
+| `versionProtocol` | `Int` | Protocol version (0 = non-Minecraft) |
+| `playerSample` | `MutableList<PlayerInfo>` | Players shown on hover |
+| `favicon` | `String?` | Base64-encoded 64x64 PNG |
+
+### Kotlin Example
+
+```kotlin
+import com.rixafy.pingprotocol.PingEvent
+
+class MyPlugin : JavaPlugin(init) {
+
+    override fun start() {
+        // Register a ping event listener
+        PingEvent.addListener { event ->
+            // Customize the MOTD
+            event.motd = "§aWelcome to My Server!\n§7Currently ${event.onlinePlayers} players online"
+
+            // Modify player count display
+            event.maxPlayers = 500
+
+            // Add a custom entry to the player sample (shown on hover)
+            event.playerSample.add(
+                PingEvent.PlayerInfo(
+                    name = "§eNext restart: 2 hours",
+                    uuid = "00000000-0000-0000-0000-000000000000"
+                )
+            )
+
+            // Set favicon (base64 PNG, 64x64)
+            event.favicon = "data:image/png;base64,iVBORw0KGgo..."
+
+            // Access client info
+            val clientIp = event.clientAddress?.address?.hostAddress
+            println("Ping from: $clientIp (protocol: ${event.protocolVersion})")
+        }
+    }
+
+    override fun shutdown() {
+        // Clean up listeners
+        PingEvent.clearListeners()
+    }
+}
+```
+
+### Java Example
+
+```java
+import com.rixafy.pingprotocol.PingEvent;
+
+public class MyPlugin extends JavaPlugin {
+
+    private PingEvent.Listener pingListener;
+
+    @Override
+    public void start() {
+        // Create and register a ping event listener
+        pingListener = event -> {
+            // Customize the MOTD
+            event.setMotd("§aWelcome to My Server!\n§7Currently " + event.getOnlinePlayers() + " players online");
+
+            // Modify player count display
+            event.setMaxPlayers(500);
+
+            // Add a custom entry to the player sample (shown on hover)
+            event.getPlayerSample().add(
+                new PingEvent.PlayerInfo(
+                    "§eNext restart: 2 hours",
+                    "00000000-0000-0000-0000-000000000000"
+                )
+            );
+
+            // Set favicon (base64 PNG, 64x64)
+            event.setFavicon("data:image/png;base64,iVBORw0KGgo...");
+
+            // Access client info
+            if (event.getClientAddress() != null) {
+                String clientIp = event.getClientAddress().getAddress().getHostAddress();
+                System.out.println("Ping from: " + clientIp + " (protocol: " + event.getProtocolVersion() + ")");
+            }
+        };
+
+        PingEvent.Companion.addListener(pingListener);
+    }
+
+    @Override
+    public void shutdown() {
+        // Remove the listener
+        PingEvent.Companion.removeListener(pingListener);
+    }
+}
+```
+
+### 💡 Tips
+
+- **Legacy pings** (`event.isLegacy == true`) only support `motd`, `onlinePlayers`, `maxPlayers`, and `versionName`. Player sample and favicon are ignored.
+- **Player sample** entries can use Minecraft color codes (§) for colored text in the hover tooltip.
+- **Favicon** must be a base64-encoded PNG image exactly 64x64 pixels.
+- **Multiple listeners** are supported — all listeners are called in registration order.
 
 ## Protocol Support
 
